@@ -1,4 +1,12 @@
 '''
+Author: silencesoup silencesoup@outlook.com
+Date: 2024-05-13 20:55:42
+LastEditors: silencesoup silencesoup@outlook.com
+LastEditTime: 2024-05-14 09:36:35
+FilePath: /computer_vision_project/models/resnet30.py
+Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
+'''
+'''
 Reference:
 [1] K. He, X. Zhang, S. Ren, and J. Sun. Deep residual learning for image recognition. In CVPR, 2016.
 [2] K. He, X. Zhang, S. Ren, and J. Sun. Identity mappings in deep residual networks. In ECCV, 2016.
