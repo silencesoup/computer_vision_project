@@ -31,17 +31,18 @@ class BasicBlock(nn.Module):
 class ResNet(nn.Module):
     def __init__(self, block, layers, num_classes=50):
         super(ResNet, self).__init__()
-        self.in_channels = 64
-        self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
-        self.bn1 = nn.BatchNorm2d(64)
+        self.in_channels = 40
+        inplanes = self.in_channels
+        self.conv1 = nn.Conv2d(3, inplanes, kernel_size=7, stride=2, padding=3, bias=False)
+        self.bn1 = nn.BatchNorm2d(inplanes)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-        self.layer1 = self._make_layer(block, 64, layers[0])
-        self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
-        self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
-        self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
+        self.layer1 = self._make_layer(block, inplanes, layers[0])
+        self.layer2 = self._make_layer(block, inplanes * 2, layers[1], stride=2)
+        self.layer3 = self._make_layer(block, inplanes * 4, layers[2], stride=2)
+        self.layer4 = self._make_layer(block, inplanes * 8, layers[3], stride=2)
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc = nn.Linear(512 * block.expansion, num_classes)
+        self.fc = nn.Linear(inplanes * 8 * block.expansion, num_classes)
 
     def _make_layer(self, block, out_channels, blocks, stride=1):
         downsample = None
@@ -75,4 +76,4 @@ class ResNet(nn.Module):
         return x
 
 def resnet34(num_classes=50):
-    return ResNet(BasicBlock, [3, 4, 6, 3], num_classes)
+    return ResNet(BasicBlock, [3, 4, 4, 3], num_classes)
