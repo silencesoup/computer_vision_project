@@ -9,3 +9,4 @@ Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查�
 from models.custom_model import *
 from models.custom_model2 import *
 from models.resnet30 import *
+from models.resnet34 import *
