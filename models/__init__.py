@@ -10,3 +10,4 @@ from models.custom_model import *
 from models.custom_model2 import *
 from models.resnet30 import *
 from models.resnet34 import *
+from models.resnet50 import *
