@@ -3,13 +3,15 @@ import shutil
 
 import torch.backends.cudnn as cudnn
 from torchvision.datasets import ImageFolder
-
+from models.resnet50 import resnet50
 from utils.functions import *
 from utils.image_preprocess import *
+from utils.loss import LabelSmoothingLoss
 from utils.lr_schedule import adjust_learning_rate
 from utils.mixup import *
 from model_params_flops import *
 from torch.autograd import Variable
+from utils.cutmix import *
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
@@ -51,6 +53,13 @@ parser.add_argument('--cuda', default=torch.cuda.is_available(), type=bool, help
 
 best_prec1 = 0
 
+def distillation_loss(y, labels, teacher_scores, T, alpha, criterion):
+    loss = alpha * nn.KLDivLoss()(nn.functional.log_softmax(y / T, dim=1),
+                                nn.functional.softmax(teacher_scores / T, dim=1)) * (T * T) + \
+        (1. - alpha) * criterion(y, labels)
+    return loss
+
+
 def main():
     global args, best_prec1
     args = parser.parse_args()
@@ -70,8 +79,18 @@ def main():
     # compute the parameters and FLOPs of model
     model_params_flops(args.arch)
 
+    # Load teacher model
+    print('=> Loading teacher model (ResNet50) from pth file...')
+    teacher_model = resnet50()
+    checkpoint = torch.load('./Results/ex30_teacher_model/resnet50_lr_0.05/model_best.pth.tar')
+    teacher_model.load_state_dict(checkpoint['state_dict'])
+    teacher_model = teacher_model.to('cuda')
+    teacher_model.eval()
+
     # define loss function (criterion)
     criterion = nn.CrossEntropyLoss()
+    # criterion = LabelSmoothingLoss(classes=args.num_classes, smoothing=0.1)
+
 
     # optionally resume from a checkpoint
     if args.resume:
@@ -100,13 +119,18 @@ def main():
     # define optimizer
     if args.optimizer == 'SGD':
         optimizer = torch.optim.SGD(model.parameters(), args.lr, momentum=0.9, weight_decay=5e-4)
+    elif args.optimizer == 'RMSprop':
+        optimizer = torch.optim.RMSprop(model.parameters(), args.lr, alpha=0.99, eps=1e-08, weight_decay=5e-4, momentum=0.9)
+    elif args.optimizer == 'Adam':
+        optimizer = torch.optim.Adam(model.parameters(), args.lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=5e-4)
     elif args.optimizer == 'custom':
         """
             You can achieve your own optimizer here
         """
         pass
     else:
-        raise KeyError('optimization method {} is not achieved')
+        raise KeyError('optimization method {} is not achieved'.format(args.optimizer))
+
 
     if args.resume:
         if os.path.isfile(args.resume):
@@ -131,7 +155,7 @@ def main():
         adjust_learning_rate(args, optimizer, epoch)
         print('learning rate:{}'.format(optimizer.param_groups[0]['lr']))
         # train for one epoch
-        trainObj, top1, top5 = train(train_loader, model, criterion, optimizer, epoch)
+        trainObj, top1, top5 = train(train_loader, model, teacher_model, criterion, optimizer, epoch)
 
         # evaluate on validation set
         valObj, prec1, prec5 = validate(val_loader, model, criterion)
@@ -161,7 +185,7 @@ def main():
 
 
 
-def train(train_loader, model, criterion, optimizer, epoch):
+def train(train_loader, model, teacher_model, criterion, optimizer, epoch):
     batch_time = AverageMeter()
     data_time = AverageMeter()
     losses = AverageMeter()
@@ -182,13 +206,19 @@ def train(train_loader, model, criterion, optimizer, epoch):
 
         # mix up
         inputs, targets_a, targets_b, lam = mixup_data(input, target, 1., use_cuda=True)
+        # inputs, targets_a, targets_b, lam = cutmix_data(input, target)
         # inputs, targets_a, targets_b = Variable(inputs), Variable(targets_a), Variable(targets_b)
 
         # compute the output
         output = model(inputs)
 
+        # Get teacher model's output
+        with torch.no_grad():
+            teacher_output = teacher_model(inputs)
+
         # compute the loss
-        loss= mixup_criterion(criterion,output,targets_a, targets_b, lam)
+        # loss= mixup_criterion(criterion,output,targets_a, targets_b, lam)
+        loss = distillation_loss(output, targets_a, teacher_output, T=4, alpha=0.7, criterion = criterion)
 
         # measure accuracy and record loss
         prec1, prec5 = accuracy(output, target, topk=(1, 5))
@@ -269,3 +299,4 @@ def validate(val_loader, model, criterion):
 
 if __name__=='__main__':
     main()
+
